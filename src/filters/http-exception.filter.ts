@@ -7,26 +7,31 @@ import {
 } from "@nestjs/common";
 import { Response } from "express";
 
-// 全局异常过滤器
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  catch(exception: any, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    // 提取错误信息
-    const message =
-      exception instanceof HttpException ? exception.message : "服务器内部错误";
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = "服务器内部错误";
+    let errorName = "InternalServerError";
 
-    // 返回统一错误格式
+    if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      message = exception.message;
+      const exceptionName = (exception as Error).name;
+      errorName =
+        typeof exceptionName === "string" ? exceptionName : "HttpException";
+    } else if (exception instanceof Error) {
+      errorName = exception.name || "Error";
+      message = exception.message;
+    }
+
     response.status(status).json({
       statusCode: status,
       message,
-      error: exception.name || "InternalServerError",
+      error: errorName,
     });
   }
 }
