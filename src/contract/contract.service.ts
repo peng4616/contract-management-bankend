@@ -53,7 +53,7 @@ export class ContractService {
   // 更新合同
   async update(
     id: number,
-    updateContractDto: UpdateContractDto
+    updateContractDto: UpdateContractDto,
   ): Promise<Contract> {
     if (updateContractDto.contractNo) {
       const existingContract = await this.contractRepository.findOne({
@@ -61,7 +61,7 @@ export class ContractService {
       });
       if (existingContract && existingContract.id !== id) {
         throw new BadRequestException(
-          `合同编号 ${updateContractDto.contractNo} 已存在`
+          `合同编号 ${updateContractDto.contractNo} 已存在`,
         );
       }
     }
@@ -71,13 +71,11 @@ export class ContractService {
 
   // 删除合同
   async remove(id: number): Promise<void> {
-    const contract = await this.findOne(id); // 确保合同存在
     await this.contractRepository.delete(id);
   }
 
   // 审批合同
   async approve(id: number, status: string): Promise<Contract> {
-    const contract = await this.findOne(id); // 确保合同存在
     await this.contractRepository.update(id, { status });
     return this.findOne(id);
   }
@@ -85,7 +83,7 @@ export class ContractService {
   // 上传附件
   async uploadAttachment(
     contractId: number,
-    file: Express.Multer.File
+    file: Express.Multer.File,
   ): Promise<Attachment> {
     const contract = await this.findOne(contractId);
     const uploadDir = join(__dirname, "..", "..", "uploads");

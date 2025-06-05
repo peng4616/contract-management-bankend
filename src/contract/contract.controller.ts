@@ -115,7 +115,7 @@ export class ContractController {
   })
   update(
     @Param("id") id: string,
-    @Body() updateContractDto: UpdateContractDto
+    @Body() updateContractDto: UpdateContractDto,
   ): Promise<Contract> {
     return this.contractService.update(+id, updateContractDto);
   }
@@ -159,7 +159,7 @@ export class ContractController {
   })
   approve(
     @Param("id") id: string,
-    @Body("status") status: string
+    @Body("status") status: string,
   ): Promise<Contract> {
     return this.contractService.approve(+id, status);
   }
@@ -208,11 +208,11 @@ export class ContractController {
         }
       },
       limits: { fileSize: 10 * 1024 * 1024 },
-    })
+    }),
   )
   uploadAttachment(
     @Param("id") id: string,
-    @UploadedFile() file: Express.Multer.File
+    @UploadedFile() file: Express.Multer.File,
   ): Promise<Attachment> {
     return this.contractService.uploadAttachment(+id, file);
   }
@@ -233,7 +233,7 @@ export class ContractController {
     type: ErrorResponseDto,
   })
   async downloadAttachment(
-    @Param("attachmentId") attachmentId: string
+    @Param("attachmentId") attachmentId: string,
   ): Promise<StreamableFile> {
     const attachment = await this.contractService.getAttachment(+attachmentId);
     const file = createReadStream(join(process.cwd(), attachment.filePath));
