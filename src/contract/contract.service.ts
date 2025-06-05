@@ -23,7 +23,6 @@ export class ContractService {
 
   // 创建合同
   async create(createContractDto: CreateContractDto): Promise<Contract> {
-    // 检查 contractNo 是否已存在
     const existingContract = await this.contractRepository.findOne({
       where: { contractNo: createContractDto.contractNo },
     });
@@ -32,17 +31,16 @@ export class ContractService {
         `合同编号 ${createContractDto.contractNo} 已存在`
       );
     }
-
     const contract = this.contractRepository.create(createContractDto);
     return this.contractRepository.save(contract);
   }
 
-  // 查询所有合同（包含附件）
+  // 查询所有合同
   async findAll(): Promise<Contract[]> {
     return this.contractRepository.find({ relations: ["attachments"] });
   }
 
-  // 根据 ID 查询合同（包含附件）
+  // 根据 ID 查询合同
   async findOne(id: number): Promise<Contract> {
     const contract = await this.contractRepository.findOne({
       where: { id },
@@ -57,7 +55,6 @@ export class ContractService {
     id: number,
     updateContractDto: UpdateContractDto
   ): Promise<Contract> {
-    // 如果更新 contractNo，检查是否已存在
     if (updateContractDto.contractNo) {
       const existingContract = await this.contractRepository.findOne({
         where: { contractNo: updateContractDto.contractNo },
@@ -74,11 +71,13 @@ export class ContractService {
 
   // 删除合同
   async remove(id: number): Promise<void> {
+    const contract = await this.findOne(id); // 确保合同存在
     await this.contractRepository.delete(id);
   }
 
   // 审批合同
   async approve(id: number, status: string): Promise<Contract> {
+    const contract = await this.findOne(id); // 确保合同存在
     await this.contractRepository.update(id, { status });
     return this.findOne(id);
   }
@@ -89,15 +88,10 @@ export class ContractService {
     file: Express.Multer.File
   ): Promise<Attachment> {
     const contract = await this.findOne(contractId);
-    if (!contract) throw new NotFoundException("合同不存在");
-
-    // 确保上传目录存在
     const uploadDir = join(__dirname, "..", "..", "uploads");
     if (!existsSync(uploadDir)) {
       mkdirSync(uploadDir, { recursive: true });
     }
-
-    // 保存附件元数据
     const attachment = this.attachmentRepository.create({
       fileName: file.originalname,
       filePath: join("uploads", file.filename),
@@ -106,7 +100,6 @@ export class ContractService {
       contract,
       createdAt: new Date(),
     });
-
     return this.attachmentRepository.save(attachment);
   }
 

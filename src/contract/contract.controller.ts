@@ -24,14 +24,17 @@ import {
   ApiBody,
   ApiConsumes,
   ApiBearerAuth,
+  ApiExtraModels,
 } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
 import { extname, join } from "path";
 import { createReadStream } from "fs";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { ResponseDto, ErrorResponseDto } from "../common/dto/response.dto"; // 导入公共 DTO
 
 @ApiTags("Contracts")
+@ApiExtraModels(ResponseDto, ErrorResponseDto, Contract, Attachment) // 声明 DTO
 @Controller("contracts")
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
@@ -42,8 +45,17 @@ export class ContractController {
   @Post()
   @ApiOperation({ summary: "创建新合同" })
   @ApiBody({ type: CreateContractDto })
-  @ApiResponse({ status: 201, description: "合同创建成功", type: Contract })
-  @ApiResponse({ status: 400, description: "合同编号已存在" })
+  @ApiResponse({
+    status: 201,
+    description: "合同创建成功",
+    type: () => ResponseDto<Contract>,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "合同编号已存在",
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
   create(@Body() createContractDto: CreateContractDto): Promise<Contract> {
     return this.contractService.create(createContractDto);
   }
@@ -51,7 +63,12 @@ export class ContractController {
   // 获取所有合同
   @Get()
   @ApiOperation({ summary: "获取所有合同列表" })
-  @ApiResponse({ status: 200, description: "返回合同列表", type: [Contract] })
+  @ApiResponse({
+    status: 200,
+    description: "返回合同列表",
+    type: () => ResponseDto<Contract[]>,
+  })
+  @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
   findAll(): Promise<Contract[]> {
     return this.contractService.findAll();
   }
@@ -60,8 +77,17 @@ export class ContractController {
   @Get(":id")
   @ApiOperation({ summary: "根据 ID 获取合同详情" })
   @ApiParam({ name: "id", description: "合同 ID" })
-  @ApiResponse({ status: 200, description: "返回合同详情", type: Contract })
-  @ApiResponse({ status: 404, description: "合同不存在" })
+  @ApiResponse({
+    status: 200,
+    description: "返回合同详情",
+    type: () => ResponseDto<Contract>,
+  })
+  @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: "合同不存在",
+    type: ErrorResponseDto,
+  })
   findOne(@Param("id") id: string): Promise<Contract> {
     return this.contractService.findOne(+id);
   }
@@ -71,9 +97,22 @@ export class ContractController {
   @ApiOperation({ summary: "更新合同信息" })
   @ApiParam({ name: "id", description: "合同 ID" })
   @ApiBody({ type: UpdateContractDto })
-  @ApiResponse({ status: 200, description: "合同更新成功", type: Contract })
-  @ApiResponse({ status: 400, description: "合同编号已存在" })
-  @ApiResponse({ status: 404, description: "合同不存在" })
+  @ApiResponse({
+    status: 200,
+    description: "合同更新成功",
+    type: () => ResponseDto<Contract>,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "合同编号已存在",
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: "合同不存在",
+    type: ErrorResponseDto,
+  })
   update(
     @Param("id") id: string,
     @Body() updateContractDto: UpdateContractDto
@@ -85,8 +124,17 @@ export class ContractController {
   @Delete(":id")
   @ApiOperation({ summary: "删除合同" })
   @ApiParam({ name: "id", description: "合同 ID" })
-  @ApiResponse({ status: 200, description: "合同删除成功" })
-  @ApiResponse({ status: 404, description: "合同不存在" })
+  @ApiResponse({
+    status: 200,
+    description: "合同删除成功",
+    type: () => ResponseDto<null>,
+  })
+  @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: "合同不存在",
+    type: ErrorResponseDto,
+  })
   remove(@Param("id") id: string): Promise<void> {
     return this.contractService.remove(+id);
   }
@@ -98,8 +146,17 @@ export class ContractController {
   @ApiBody({
     schema: { type: "object", properties: { status: { type: "string" } } },
   })
-  @ApiResponse({ status: 200, description: "合同审批成功", type: Contract })
-  @ApiResponse({ status: 404, description: "合同不存在" })
+  @ApiResponse({
+    status: 200,
+    description: "合同审批成功",
+    type: () => ResponseDto<Contract>,
+  })
+  @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: "合同不存在",
+    type: ErrorResponseDto,
+  })
   approve(
     @Param("id") id: string,
     @Body("status") status: string
@@ -120,8 +177,17 @@ export class ContractController {
       },
     },
   })
-  @ApiResponse({ status: 201, description: "附件上传成功", type: Attachment })
-  @ApiResponse({ status: 404, description: "合同不存在" })
+  @ApiResponse({
+    status: 201,
+    description: "附件上传成功",
+    type: () => ResponseDto<Attachment>,
+  })
+  @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: "合同不存在",
+    type: ErrorResponseDto,
+  })
   @UseInterceptors(
     FileInterceptor("file", {
       storage: diskStorage({
@@ -160,7 +226,12 @@ export class ContractController {
     description: "返回附件文件",
     content: { "application/octet-stream": {} },
   })
-  @ApiResponse({ status: 404, description: "附件不存在" })
+  @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: "附件不存在",
+    type: ErrorResponseDto,
+  })
   async downloadAttachment(
     @Param("attachmentId") attachmentId: string
   ): Promise<StreamableFile> {

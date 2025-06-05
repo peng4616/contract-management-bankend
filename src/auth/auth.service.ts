@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { User } from "./entities/user.entity";
@@ -18,7 +22,13 @@ export class AuthService {
   // 用户注册
   async register(registerDto: RegisterDto): Promise<User> {
     const { username, password, role } = registerDto;
-    const hashedPassword = await bcrypt.hash(password, 10); // 加密密码
+    const existingUser = await this.userRepository.findOne({
+      where: { username },
+    });
+    if (existingUser) {
+      throw new BadRequestException(`用户名 ${username} 已存在`);
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
     const user = this.userRepository.create({
       username,
       password: hashedPassword,
@@ -36,7 +46,7 @@ export class AuthService {
     }
     const payload = { username: user.username, sub: user.id, role: user.role };
     return {
-      accessToken: this.jwtService.sign(payload), // 生成 JWT
+      accessToken: this.jwtService.sign(payload),
     };
   }
 
