@@ -9,12 +9,13 @@ import {
   UseInterceptors,
   UploadedFile,
   StreamableFile,
-} from '@nestjs/common';
-import { ContractService } from './contract.service';
-import { CreateContractDto } from './dto/create-contract.dto';
-import { UpdateContractDto } from './dto/update-contract.dto';
-import { Contract } from './entities/contract.entity';
-import { Attachment } from './entities/attachment.entity';
+  UseGuards,
+} from "@nestjs/common";
+import { ContractService } from "./contract.service";
+import { CreateContractDto } from "./dto/create-contract.dto";
+import { UpdateContractDto } from "./dto/update-contract.dto";
+import { Contract } from "./entities/contract.entity";
+import { Attachment } from "./entities/attachment.entity";
 import {
   ApiTags,
   ApiOperation,
@@ -22,135 +23,146 @@ import {
   ApiParam,
   ApiBody,
   ApiConsumes,
-} from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
-import { createReadStream } from 'fs';
+  ApiBearerAuth,
+} from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { diskStorage } from "multer";
+import { extname, join } from "path";
+import { createReadStream } from "fs";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 
-@ApiTags('Contracts')
-@Controller('contracts')
+@ApiTags("Contracts")
+@Controller("contracts")
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class ContractController {
   constructor(private readonly contractService: ContractService) {}
 
   // 创建合同
   @Post()
-  @ApiOperation({ summary: '创建新合同' })
+  @ApiOperation({ summary: "创建新合同" })
   @ApiBody({ type: CreateContractDto })
-  @ApiResponse({ status: 201, description: '合同创建成功', type: Contract })
+  @ApiResponse({ status: 201, description: "合同创建成功", type: Contract })
+  @ApiResponse({ status: 400, description: "合同编号已存在" })
   create(@Body() createContractDto: CreateContractDto): Promise<Contract> {
     return this.contractService.create(createContractDto);
   }
 
   // 获取所有合同
   @Get()
-  @ApiOperation({ summary: '获取所有合同列表' })
-  @ApiResponse({ status: 200, description: '返回合同列表', type: [Contract] })
+  @ApiOperation({ summary: "获取所有合同列表" })
+  @ApiResponse({ status: 200, description: "返回合同列表", type: [Contract] })
   findAll(): Promise<Contract[]> {
     return this.contractService.findAll();
   }
 
   // 获取单个合同
-  @Get(':id')
-  @ApiOperation({ summary: '根据 ID 获取合同详情' })
-  @ApiParam({ name: 'id', description: '合同 ID' })
-  @ApiResponse({ status: 200, description: '返回合同详情', type: Contract })
-  findOne(@Param('id') id: string): Promise<Contract> {
+  @Get(":id")
+  @ApiOperation({ summary: "根据 ID 获取合同详情" })
+  @ApiParam({ name: "id", description: "合同 ID" })
+  @ApiResponse({ status: 200, description: "返回合同详情", type: Contract })
+  @ApiResponse({ status: 404, description: "合同不存在" })
+  findOne(@Param("id") id: string): Promise<Contract> {
     return this.contractService.findOne(+id);
   }
 
   // 更新合同
-  @Put(':id')
-  @ApiOperation({ summary: '更新合同信息' })
-  @ApiParam({ name: 'id', description: '合同 ID' })
+  @Put(":id")
+  @ApiOperation({ summary: "更新合同信息" })
+  @ApiParam({ name: "id", description: "合同 ID" })
   @ApiBody({ type: UpdateContractDto })
-  @ApiResponse({ status: 200, description: '合同更新成功', type: Contract })
+  @ApiResponse({ status: 200, description: "合同更新成功", type: Contract })
+  @ApiResponse({ status: 400, description: "合同编号已存在" })
+  @ApiResponse({ status: 404, description: "合同不存在" })
   update(
-    @Param('id') id: string,
-    @Body() updateContractDto: UpdateContractDto,
+    @Param("id") id: string,
+    @Body() updateContractDto: UpdateContractDto
   ): Promise<Contract> {
     return this.contractService.update(+id, updateContractDto);
   }
 
   // 删除合同
-  @Delete(':id')
-  @ApiOperation({ summary: '删除合同' })
-  @ApiParam({ name: 'id', description: '合同 ID' })
-  @ApiResponse({ status: 200, description: '合同删除成功' })
-  remove(@Param('id') id: string): Promise<void> {
+  @Delete(":id")
+  @ApiOperation({ summary: "删除合同" })
+  @ApiParam({ name: "id", description: "合同 ID" })
+  @ApiResponse({ status: 200, description: "合同删除成功" })
+  @ApiResponse({ status: 404, description: "合同不存在" })
+  remove(@Param("id") id: string): Promise<void> {
     return this.contractService.remove(+id);
   }
 
   // 审批合同
-  @Put(':id/approve')
-  @ApiOperation({ summary: '审批合同' })
-  @ApiParam({ name: 'id', description: '合同 ID' })
+  @Put(":id/approve")
+  @ApiOperation({ summary: "审批合同" })
+  @ApiParam({ name: "id", description: "合同 ID" })
   @ApiBody({
-    schema: { type: 'object', properties: { status: { type: 'string' } } },
+    schema: { type: "object", properties: { status: { type: "string" } } },
   })
-  @ApiResponse({ status: 200, description: '合同审批成功', type: Contract })
+  @ApiResponse({ status: 200, description: "合同审批成功", type: Contract })
+  @ApiResponse({ status: 404, description: "合同不存在" })
   approve(
-    @Param('id') id: string,
-    @Body('status') status: string,
+    @Param("id") id: string,
+    @Body("status") status: string
   ): Promise<Contract> {
     return this.contractService.approve(+id, status);
   }
 
   // 上传附件
-  @Post(':id/attachments')
-  @ApiOperation({ summary: '为合同上传附件' })
-  @ApiParam({ name: 'id', description: '合同 ID' })
-  @ApiConsumes('multipart/form-data')
+  @Post(":id/attachments")
+  @ApiOperation({ summary: "为合同上传附件" })
+  @ApiParam({ name: "id", description: "合同 ID" })
+  @ApiConsumes("multipart/form-data")
   @ApiBody({
     schema: {
-      type: 'object',
+      type: "object",
       properties: {
-        file: { type: 'string', format: 'binary' },
+        file: { type: "string", format: "binary" },
       },
     },
   })
-  @ApiResponse({ status: 201, description: '附件上传成功', type: Attachment })
+  @ApiResponse({ status: 201, description: "附件上传成功", type: Attachment })
+  @ApiResponse({ status: 404, description: "合同不存在" })
   @UseInterceptors(
-    FileInterceptor('file', {
+    FileInterceptor("file", {
       storage: diskStorage({
-        destination: './uploads',
+        destination: "./uploads",
         filename: (req, file, cb) => {
           const randomName = Array(32)
             .fill(null)
             .map(() => Math.round(Math.random() * 16).toString(16))
-            .join('');
+            .join("");
           cb(null, `${randomName}${extname(file.originalname)}`);
         },
       }),
       fileFilter: (req, file, cb) => {
-        // 限制文件类型（PDF 和 Word）
         if (file.mimetype.match(/\/(pdf|msword|docx)$/)) {
           cb(null, true);
         } else {
-          cb(new Error('仅支持 PDF 和 Word 格式'), false);
+          cb(new Error("仅支持 PDF 和 Word 格式"), false);
         }
       },
-      limits: { fileSize: 10 * 1024 * 1024 }, // 限制文件大小为 10MB
-    }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    })
   )
   uploadAttachment(
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
+    @Param("id") id: string,
+    @UploadedFile() file: Express.Multer.File
   ): Promise<Attachment> {
     return this.contractService.uploadAttachment(+id, file);
   }
 
   // 下载附件
-  @Get('attachments/:attachmentId')
-  @ApiOperation({ summary: '下载附件' })
-  @ApiParam({ name: 'attachmentId', description: '附件 ID' })
+  @Get("attachments/:attachmentId")
+  @ApiOperation({ summary: "下载附件" })
+  @ApiParam({ name: "attachmentId", description: "附件 ID" })
   @ApiResponse({
     status: 200,
-    description: '返回附件文件',
-    content: { 'application/octet-stream': {} },
+    description: "返回附件文件",
+    content: { "application/octet-stream": {} },
   })
+  @ApiResponse({ status: 404, description: "附件不存在" })
   async downloadAttachment(
-    @Param('attachmentId') attachmentId: string,
+    @Param("attachmentId") attachmentId: string
   ): Promise<StreamableFile> {
     const attachment = await this.contractService.getAttachment(+attachmentId);
     const file = createReadStream(join(process.cwd(), attachment.filePath));

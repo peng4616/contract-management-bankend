@@ -1,12 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Contract } from './entities/contract.entity';
-import { Attachment } from './entities/attachment.entity';
-import { CreateContractDto } from './dto/create-contract.dto';
-import { UpdateContractDto } from './dto/update-contract.dto';
-import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Contract } from "./entities/contract.entity";
+import { Attachment } from "./entities/attachment.entity";
+import { CreateContractDto } from "./dto/create-contract.dto";
+import { UpdateContractDto } from "./dto/update-contract.dto";
+import { join } from "path";
+import { existsSync, mkdirSync } from "fs";
 
 @Injectable()
 export class ContractService {
@@ -14,35 +18,56 @@ export class ContractService {
     @InjectRepository(Contract)
     private contractRepository: Repository<Contract>,
     @InjectRepository(Attachment)
-    private attachmentRepository: Repository<Attachment>,
+    private attachmentRepository: Repository<Attachment>
   ) {}
 
   // 创建合同
   async create(createContractDto: CreateContractDto): Promise<Contract> {
+    // 检查 contractNo 是否已存在
+    const existingContract = await this.contractRepository.findOne({
+      where: { contractNo: createContractDto.contractNo },
+    });
+    if (existingContract) {
+      throw new BadRequestException(
+        `合同编号 ${createContractDto.contractNo} 已存在`
+      );
+    }
+
     const contract = this.contractRepository.create(createContractDto);
     return this.contractRepository.save(contract);
   }
 
   // 查询所有合同（包含附件）
   async findAll(): Promise<Contract[]> {
-    return this.contractRepository.find({ relations: ['attachments'] });
+    return this.contractRepository.find({ relations: ["attachments"] });
   }
 
   // 根据 ID 查询合同（包含附件）
   async findOne(id: number): Promise<Contract> {
     const contract = await this.contractRepository.findOne({
       where: { id },
-      relations: ['attachments'],
+      relations: ["attachments"],
     });
-    if (!contract) throw new NotFoundException('合同不存在');
+    if (!contract) throw new NotFoundException("合同不存在");
     return contract;
   }
 
   // 更新合同
   async update(
     id: number,
-    updateContractDto: UpdateContractDto,
+    updateContractDto: UpdateContractDto
   ): Promise<Contract> {
+    // 如果更新 contractNo，检查是否已存在
+    if (updateContractDto.contractNo) {
+      const existingContract = await this.contractRepository.findOne({
+        where: { contractNo: updateContractDto.contractNo },
+      });
+      if (existingContract && existingContract.id !== id) {
+        throw new BadRequestException(
+          `合同编号 ${updateContractDto.contractNo} 已存在`
+        );
+      }
+    }
     await this.contractRepository.update(id, updateContractDto);
     return this.findOne(id);
   }
@@ -61,13 +86,13 @@ export class ContractService {
   // 上传附件
   async uploadAttachment(
     contractId: number,
-    file: Express.Multer.File,
+    file: Express.Multer.File
   ): Promise<Attachment> {
     const contract = await this.findOne(contractId);
-    if (!contract) throw new NotFoundException('合同不存在');
+    if (!contract) throw new NotFoundException("合同不存在");
 
     // 确保上传目录存在
-    const uploadDir = join(__dirname, '..', '..', 'uploads');
+    const uploadDir = join(__dirname, "..", "..", "uploads");
     if (!existsSync(uploadDir)) {
       mkdirSync(uploadDir, { recursive: true });
     }
@@ -75,7 +100,7 @@ export class ContractService {
     // 保存附件元数据
     const attachment = this.attachmentRepository.create({
       fileName: file.originalname,
-      filePath: join('uploads', file.filename),
+      filePath: join("uploads", file.filename),
       mimeType: file.mimetype,
       fileSize: file.size,
       contract,
@@ -89,9 +114,9 @@ export class ContractService {
   async getAttachment(id: number): Promise<Attachment> {
     const attachment = await this.attachmentRepository.findOne({
       where: { id },
-      relations: ['contract'],
+      relations: ["contract"],
     });
-    if (!attachment) throw new NotFoundException('附件不存在');
+    if (!attachment) throw new NotFoundException("附件不存在");
     return attachment;
   }
 }
