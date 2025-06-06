@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -14,6 +15,7 @@ import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
 import * as iconv from "iconv-lite";
 import { SearchContractDto } from "./dto/search-contract.dto";
+import { User } from "../user/user.entity"; // 假设 User 实体在 user 目录下
 
 @Injectable()
 export class ContractService {
@@ -165,12 +167,22 @@ export class ContractService {
   }
 
   // 获取附件信息
-  async getAttachment(id: number): Promise<Attachment> {
+  async getAttachment(id: number, user?: User): Promise<Attachment> {
     const attachment = await this.attachmentRepository.findOne({
       where: { id },
-      relations: ["contract"],
+      relations: ["contract", "contract.createdBy"],
     });
     if (!attachment) throw new NotFoundException("附件不存在");
+
+    // 权限验证
+    if (
+      user &&
+      user.role !== "ADMIN" &&
+      attachment.contract.createdBy?.id !== user.id
+    ) {
+      throw new ForbiddenException("无权下载该附件");
+    }
+
     return attachment;
   }
 }

@@ -8,9 +8,10 @@ import {
   Delete,
   UseInterceptors,
   UploadedFile,
-  StreamableFile,
   UseGuards,
   Query,
+  Res,
+  NotFoundException,
 } from "@nestjs/common";
 import { ContractService } from "./contract.service";
 import { CreateContractDto } from "./dto/create-contract.dto";
@@ -31,11 +32,12 @@ import {
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
 import { extname, join } from "path";
-import { createReadStream } from "fs";
+import { promises as fs, createReadStream } from "fs";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import * as iconv from "iconv-lite";
 import { ResponseDto, ErrorResponseDto } from "../common/dto/response.dto"; // 导入公共 DTO
 import { SearchContractDto } from "./dto/search-contract.dto";
+import { Response } from "express";
 
 @ApiTags("Contracts")
 @ApiExtraModels(ResponseDto, ErrorResponseDto, Contract, Attachment) // 声明 DTO
@@ -175,7 +177,7 @@ export class ContractController {
   })
   approve(
     @Param("id") id: string,
-    @Body("status") status: string
+    @Body("status") status: string,
   ): Promise<Contract> {
     return this.contractService.approve(+id, status);
   }
@@ -212,7 +214,7 @@ export class ContractController {
           // 解码中文文件名，确保正确处理
           const originalName = iconv.decode(
             Buffer.from(file.originalname, "binary"),
-            "utf8"
+            "utf8",
           );
           const name = originalName.split(".").slice(0, -1).join("."); // 去掉扩展名
           const extension = extname(originalName); // 获取扩展名
@@ -250,6 +252,7 @@ export class ContractController {
 
   // 下载附件
   @Get("attachments/:attachmentId")
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "下载附件" })
   @ApiParam({ name: "attachmentId", description: "附件 ID" })
   @ApiResponse({
@@ -264,13 +267,24 @@ export class ContractController {
     type: ErrorResponseDto,
   })
   async downloadAttachment(
-    @Param("attachmentId") attachmentId: string
-  ): Promise<StreamableFile> {
+    @Param("attachmentId") attachmentId: string,
+    @Res() res: Response,
+  ): Promise<void> {
     const attachment = await this.contractService.getAttachment(+attachmentId);
-    const file = createReadStream(join(process.cwd(), attachment.filePath));
-    return new StreamableFile(file, {
-      disposition: `attachment; filename="${attachment.fileName}"`,
-      type: attachment.mimeType,
+    const filePath = join(process.cwd(), attachment.filePath);
+
+    try {
+      await fs.access(filePath); // 检查文件是否存在
+    } catch {
+      throw new NotFoundException("附件文件不存在");
+    }
+
+    res.set({
+      "Content-Type": attachment.mimeType,
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
     });
+
+    const fileStream = createReadStream(filePath);
+    fileStream.pipe(res);
   }
 }

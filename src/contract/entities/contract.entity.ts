@@ -5,11 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
 } from "typeorm";
 import { Attachment } from "./attachment.entity";
+import { User } from "../../user/user.entity";
 import { ApiProperty } from "@nestjs/swagger";
 
-// 合同实体
 @Entity()
 export class Contract {
   @ApiProperty({ description: "合同 ID", example: 1 })
@@ -21,15 +22,15 @@ export class Contract {
   contractNo: string;
 
   @ApiProperty({ description: "合同标题", example: "销售合同" })
-  @Column()
+  @Column({ type: "varchar", charset: "utf8mb4" })
   title: string;
 
   @ApiProperty({ description: "甲方名称", example: "公司 A" })
-  @Column()
+  @Column({ type: "varchar", charset: "utf8mb4" })
   partyA: string;
 
   @ApiProperty({ description: "乙方名称", example: "公司 B" })
-  @Column()
+  @Column({ type: "varchar", charset: "utf8mb4" })
   partyB: string;
 
   @ApiProperty({ description: "合同金额（万元）", example: 100.0 })
@@ -41,7 +42,11 @@ export class Contract {
     example: "DRAFT",
     enum: ["DRAFT", "PENDING", "APPROVED", "ARCHIVED"],
   })
-  @Column()
+  @Column({
+    type: "enum",
+    enum: ["DRAFT", "PENDING", "APPROVED", "ARCHIVED"],
+    default: "DRAFT",
+  })
   status: string;
 
   @ApiProperty({ description: "创建时间", example: "2025-06-05T12:00:00Z" })
@@ -54,5 +59,9 @@ export class Contract {
 
   @ApiProperty({ description: "合同附件", type: () => [Attachment] })
   @OneToMany(() => Attachment, (attachment) => attachment.contract)
-  attachments: Attachment[]; // 新增：与附件的一对多关系
+  attachments: Attachment[];
+
+  @ApiProperty({ description: "创建者", type: () => User })
+  @ManyToOne(() => User, { nullable: true })
+  createdBy: User; // 移除 @Column，让 TypeORM 自动生成 created_by 列
 }
