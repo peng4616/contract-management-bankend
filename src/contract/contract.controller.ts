@@ -10,6 +10,7 @@ import {
   UploadedFile,
   StreamableFile,
   UseGuards,
+  Query,
 } from "@nestjs/common";
 import { ContractService } from "./contract.service";
 import { CreateContractDto } from "./dto/create-contract.dto";
@@ -25,6 +26,7 @@ import {
   ApiConsumes,
   ApiBearerAuth,
   ApiExtraModels,
+  ApiQuery,
 } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
@@ -33,6 +35,7 @@ import { createReadStream } from "fs";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import * as iconv from "iconv-lite";
 import { ResponseDto, ErrorResponseDto } from "../common/dto/response.dto"; // 导入公共 DTO
+import { SearchContractDto } from "./dto/search-contract.dto";
 
 @ApiTags("Contracts")
 @ApiExtraModels(ResponseDto, ErrorResponseDto, Contract, Attachment) // 声明 DTO
@@ -61,17 +64,29 @@ export class ContractController {
     return this.contractService.create(createContractDto);
   }
 
-  // 获取所有合同
   @Get()
-  @ApiOperation({ summary: "获取所有合同列表" })
+  @ApiOperation({ summary: "获取合同列表（支持搜索和分页）" })
+  @ApiQuery({ type: SearchContractDto })
   @ApiResponse({
     status: 200,
     description: "返回合同列表",
-    type: () => ResponseDto<Contract[]>,
+    type: () => ResponseDto,
   })
   @ApiResponse({ status: 401, description: "未授权", type: ErrorResponseDto })
-  findAll(): Promise<Contract[]> {
-    return this.contractService.findAll();
+  @ApiResponse({
+    status: 400,
+    description: "请求参数错误",
+    type: ErrorResponseDto,
+  })
+  async findAll(
+    @Query() query: SearchContractDto
+  ): Promise<ResponseDto<{ data: Contract[]; total: number }>> {
+    const result = await this.contractService.findAll(query);
+    return {
+      statusCode: 200,
+      message: "查询成功",
+      data: result,
+    };
   }
 
   // 获取单个合同
@@ -160,7 +175,7 @@ export class ContractController {
   })
   approve(
     @Param("id") id: string,
-    @Body("status") status: string,
+    @Body("status") status: string
   ): Promise<Contract> {
     return this.contractService.approve(+id, status);
   }
@@ -228,7 +243,7 @@ export class ContractController {
   )
   uploadAttachment(
     @Param("id") id: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File
   ): Promise<Attachment> {
     return this.contractService.uploadAttachment(+id, file);
   }

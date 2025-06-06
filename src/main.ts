@@ -7,7 +7,14 @@ import { ResponseInterceptor } from "./interceptors/response.interceptor";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true, // 自动转换字符串到指定类型
+      transformOptions: { enableImplicitConversion: true }, // 宽松转换
+      forbidNonWhitelisted: true, // 禁止未定义的参数
+      whitelist: true, // 过滤掉非DTO定义的字段
+    })
+  );
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
 

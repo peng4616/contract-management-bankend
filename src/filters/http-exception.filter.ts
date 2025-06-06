@@ -3,35 +3,46 @@ import {
   Catch,
   ArgumentsHost,
   HttpException,
-  HttpStatus,
+  BadRequestException,
+  Logger,
 } from "@nestjs/common";
 import { Response } from "express";
 
-@Catch()
+interface ErrorResponse {
+  statusCode?: number;
+  message?: string | string[];
+  error?: string;
+}
+
+@Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
-  catch(exception: unknown, host: ArgumentsHost) {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
+  catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const status = exception.getStatus();
+    let message = exception.message;
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = "服务器内部错误";
-    let errorName = "InternalServerError";
+    if (exception instanceof BadRequestException) {
+      const responseBody = exception.getResponse() as ErrorResponse;
 
-    if (exception instanceof HttpException) {
-      status = exception.getStatus();
-      message = exception.message;
-      const exceptionName = (exception as Error).name;
-      errorName =
-        typeof exceptionName === "string" ? exceptionName : "HttpException";
-    } else if (exception instanceof Error) {
-      errorName = exception.name || "Error";
-      message = exception.message;
+      // 使用可选链 + 类型判断
+      if (Array.isArray(responseBody?.message)) {
+        message = responseBody.message.join("，");
+      } else if (typeof responseBody?.message === "string") {
+        message = responseBody.message;
+      } else {
+        message = "请求参数错误";
+      }
     }
+
+    this.logger.error(`异常: ${message}`, exception.stack);
 
     response.status(status).json({
       statusCode: status,
-      message,
-      error: errorName,
+      message: message || "请求参数错误",
+      error: exception.name,
     });
   }
 }

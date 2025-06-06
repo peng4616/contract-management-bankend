@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -12,9 +13,11 @@ import { UpdateContractDto } from "./dto/update-contract.dto";
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
 import * as iconv from "iconv-lite";
+import { SearchContractDto } from "./dto/search-contract.dto";
 
 @Injectable()
 export class ContractService {
+  private readonly logger = new Logger(ContractService.name);
   constructor(
     @InjectRepository(Contract)
     private contractRepository: Repository<Contract>,
@@ -37,8 +40,62 @@ export class ContractService {
   }
 
   // 查询所有合同
-  async findAll(): Promise<Contract[]> {
-    return this.contractRepository.find({ relations: ["attachments"] });
+  async findAll(
+    query: SearchContractDto
+  ): Promise<{ data: Contract[]; total: number }> {
+    const {
+      title,
+      status,
+      minAmount,
+      maxAmount,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+    } = query;
+
+    this.logger.debug(`查询参数: ${JSON.stringify(query)}`);
+
+    const queryBuilder = this.contractRepository
+      .createQueryBuilder("contract")
+      .leftJoinAndSelect("contract.attachments", "attachments")
+      .where("1 = 1");
+
+    if (title) {
+      queryBuilder.andWhere("contract.title LIKE :title", {
+        title: `%${title}%`,
+      });
+    }
+    if (status) {
+      queryBuilder.andWhere("contract.status = :status", { status });
+    }
+    if (minAmount !== undefined && maxAmount !== undefined) {
+      queryBuilder.andWhere(
+        "contract.amount BETWEEN :minAmount AND :maxAmount",
+        { minAmount, maxAmount }
+      );
+    } else if (minAmount !== undefined) {
+      queryBuilder.andWhere("contract.amount >= :minAmount", { minAmount });
+    } else if (maxAmount !== undefined) {
+      queryBuilder.andWhere("contract.amount <= :maxAmount", { maxAmount });
+    }
+    if (startDate && endDate) {
+      queryBuilder.andWhere(
+        "contract.createdAt BETWEEN :startDate AND :endDate",
+        { startDate, endDate }
+      );
+    }
+
+    const skip = (page - 1) * limit;
+    queryBuilder.skip(skip).take(limit);
+
+    try {
+      const [data, total] = await queryBuilder.getManyAndCount();
+      return { data, total };
+    } catch (error) {
+      this.logger.error(`查询失败: ${error.message}`, error.stack);
+      throw new BadRequestException("查询合同失败");
+    }
   }
 
   // 根据 ID 查询合同
@@ -94,7 +151,7 @@ export class ContractService {
     // 解码原始文件名以正确存储中文
     const originalName = iconv.decode(
       Buffer.from(file.originalname, "binary"),
-      "utf8",
+      "utf8"
     );
     const attachment = this.attachmentRepository.create({
       fileName: originalName,
