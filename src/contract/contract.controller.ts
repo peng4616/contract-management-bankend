@@ -31,6 +31,7 @@ import { diskStorage } from "multer";
 import { extname, join } from "path";
 import { createReadStream } from "fs";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import * as iconv from "iconv-lite";
 import { ResponseDto, ErrorResponseDto } from "../common/dto/response.dto"; // 导入公共 DTO
 
 @ApiTags("Contracts")
@@ -115,7 +116,7 @@ export class ContractController {
   })
   update(
     @Param("id") id: string,
-    @Body() updateContractDto: UpdateContractDto,
+    @Body() updateContractDto: UpdateContractDto
   ): Promise<Contract> {
     return this.contractService.update(+id, updateContractDto);
   }
@@ -193,22 +194,37 @@ export class ContractController {
       storage: diskStorage({
         destination: "./uploads",
         filename: (req, file, cb) => {
-          const randomName = Array(32)
-            .fill(null)
-            .map(() => Math.round(Math.random() * 16).toString(16))
-            .join("");
-          cb(null, `${randomName}${extname(file.originalname)}`);
+          // 解码中文文件名，确保正确处理
+          const originalName = iconv.decode(
+            Buffer.from(file.originalname, "binary"),
+            "utf8"
+          );
+          const name = originalName.split(".").slice(0, -1).join("."); // 去掉扩展名
+          const extension = extname(originalName); // 获取扩展名
+          // 添加时间戳避免冲突
+          const timestamp = Date.now();
+          const uniqueFileName = `${name}-${timestamp}${extension}`;
+          // 将文件名编码为UTF-8保存到文件系统
+          const encodedFileName = iconv
+            .encode(uniqueFileName, "utf8")
+            .toString();
+          cb(null, encodedFileName);
         },
       }),
       fileFilter: (req, file, cb) => {
+        // 确保文件名的MIME类型正确处理
+        const decodedName = iconv.decode(
+          Buffer.from(file.originalname, "binary"),
+          "utf8"
+        );
         if (file.mimetype.match(/\/(pdf|msword|docx)$/)) {
           cb(null, true);
         } else {
           cb(new Error("仅支持 PDF 和 Word 格式"), false);
         }
       },
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB 限制
+    })
   )
   uploadAttachment(
     @Param("id") id: string,
@@ -233,7 +249,7 @@ export class ContractController {
     type: ErrorResponseDto,
   })
   async downloadAttachment(
-    @Param("attachmentId") attachmentId: string,
+    @Param("attachmentId") attachmentId: string
   ): Promise<StreamableFile> {
     const attachment = await this.contractService.getAttachment(+attachmentId);
     const file = createReadStream(join(process.cwd(), attachment.filePath));

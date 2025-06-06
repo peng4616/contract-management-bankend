@@ -11,6 +11,7 @@ import { CreateContractDto } from "./dto/create-contract.dto";
 import { UpdateContractDto } from "./dto/update-contract.dto";
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
+import * as iconv from "iconv-lite";
 
 @Injectable()
 export class ContractService {
@@ -53,7 +54,7 @@ export class ContractService {
   // 更新合同
   async update(
     id: number,
-    updateContractDto: UpdateContractDto,
+    updateContractDto: UpdateContractDto
   ): Promise<Contract> {
     if (updateContractDto.contractNo) {
       const existingContract = await this.contractRepository.findOne({
@@ -61,7 +62,7 @@ export class ContractService {
       });
       if (existingContract && existingContract.id !== id) {
         throw new BadRequestException(
-          `合同编号 ${updateContractDto.contractNo} 已存在`,
+          `合同编号 ${updateContractDto.contractNo} 已存在`
         );
       }
     }
@@ -83,16 +84,21 @@ export class ContractService {
   // 上传附件
   async uploadAttachment(
     contractId: number,
-    file: Express.Multer.File,
+    file: Express.Multer.File
   ): Promise<Attachment> {
     const contract = await this.findOne(contractId);
     const uploadDir = join(__dirname, "..", "..", "uploads");
     if (!existsSync(uploadDir)) {
       mkdirSync(uploadDir, { recursive: true });
     }
+    // 解码原始文件名以正确存储中文
+    const originalName = iconv.decode(
+      Buffer.from(file.originalname, "binary"),
+      "utf8",
+    );
     const attachment = this.attachmentRepository.create({
-      fileName: file.originalname,
-      filePath: join("uploads", file.filename),
+      fileName: originalName,
+      filePath: join("uploads", file.filename), // 实际存储路径，含时间戳
       mimeType: file.mimetype,
       fileSize: file.size,
       contract,
