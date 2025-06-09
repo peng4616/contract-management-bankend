@@ -12,7 +12,7 @@ import { Response } from "express";
 interface ApiResponse<T> {
   statusCode: number; // HTTP 状态码
   message: string; // 响应消息
-  data: T; // 响应数据，泛型 T 确保类型安全
+  data: T | null; // 允许 data 为 null
 }
 
 // 声明拦截器为可注入，Nest.js 依赖注入系统可使用
@@ -25,7 +25,7 @@ export class ResponseInterceptor implements NestInterceptor {
   // 返回：Observable<ApiResponse<T>>，格式化后的响应流
   intercept<T>(
     context: ExecutionContext,
-    next: CallHandler,
+    next: CallHandler
   ): Observable<ApiResponse<T>> {
     // 获取 HTTP 响应对象
     const response = context.switchToHttp().getResponse<Response>();
@@ -39,7 +39,7 @@ export class ResponseInterceptor implements NestInterceptor {
         statusCode, // 设置状态码
         message: "操作成功", // 默认成功消息
         data, // 保留原始数据，确保类型安全
-      })),
+      }))
     );
   }
 }
